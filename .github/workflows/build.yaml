@@ -1,0 +1,69 @@
+name: Build frontend SaaS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  tags:
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.newtag.outputs.tag }}
+    steps:
+    # - uses: webfactory/ssh-agent@v0.5.4
+    #   with:
+    #     ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    - name: Check repo
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        ref: main
+        token: ${{ secrets.PAT_PUSH_TAG_ACTIONGITHUB }}
+    - name: Setup Git
+      run: |
+        git config --global user.name 'GitHub Action'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+    - name: Determine new tag
+      id: newtag
+      run: |
+        git fetch --tags
+        LAST_TAG=$(git tag | sort -V | tail -n1)
+        echo "Dernier tag trouvé: $LAST_TAG"
+        # Sépare le tag en numéros et retire le 'v' initial
+        TAG_NUMBER=${LAST_TAG//v/}
+        IFS='.' read -r MAJ MIN PATCH <<< "$TAG_NUMBER"
+        # Incrémente le dernier numéro (patch version)
+        PATCH=$((PATCH + 1))
+        NEW_TAG="v$MAJ.$MIN.$PATCH"
+        echo "Nouveau tag: $NEW_TAG"
+        echo "::set-output name=tag::$NEW_TAG"
+
+    - name: Create and Push Tag
+      run: |
+        NEW_TAG=${{ steps.newtag.outputs.tag }}
+        git tag -a "$NEW_TAG" -m "Incremented tag to $NEW_TAG"
+        git push https://${{ secrets.PAT_PUSH_TAG_ACTIONGITHUB }}@github.com/Civilisation-IT/saas-example-frontend.git --tags
+  build:
+    needs: tags
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+    steps:
+    # - uses: webfactory/ssh-agent@v0.5.4
+    #   with:
+    #     ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    - name: Check repo
+      uses: actions/checkout@v4
+      with:
+        ref: main
+    - name: Convert repo name to lowercase
+      id: repo_name
+      run: echo "::set-output name=lower::$(echo '${{ github.repository }}' | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')"
+    - name: Build the Docker image
+      env:
+        SCW_SCRT_TK_PROD:  ${{ secrets.SCW_SCRT_TK_PROD }}
+      run: docker login rg.fr-par.scw.cloud/civilisationit-prod -u nologin -p "$SCW_SCRT_TK_PROD"
+    - run: docker build . --file Dockerfile --tag "rg.fr-par.scw.cloud/registry-cicd-example/${{ steps.repo_name.outputs.lower }}:${{ needs.tags.outputs.new_tag }}"
+    - run: docker push "rg.fr-par.scw.cloud//registry-cicd-example/${{ steps.repo_name.outputs.lower }}:${{ needs.tags.outputs.new_tag }}"
