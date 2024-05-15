@@ -64,6 +64,6 @@ jobs:
     - name: Build the Docker image
       env:
         SCW_SCRT_TK_PROD:  ${{ secrets.SCW_SCRT_TK_PROD }}
-      run: docker login rg.fr-par.scw.cloud/civilisationit-prod -u nologin -p "$SCW_SCRT_TK_PROD"
+      run: docker login rg.fr-par.scw.cloud/registry-cicd-example -u nologin -p "$SCW_SCRT_TK_PROD"
     - run: docker build . --file Dockerfile --tag "rg.fr-par.scw.cloud/registry-cicd-example/${{ steps.repo_name.outputs.lower }}:${{ needs.tags.outputs.new_tag }}"
     - run: docker push "rg.fr-par.scw.cloud//registry-cicd-example/${{ steps.repo_name.outputs.lower }}:${{ needs.tags.outputs.new_tag }}"
