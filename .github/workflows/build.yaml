@@ -51,9 +51,9 @@ jobs:
       matrix:
         node-version: [20.x]
     steps:
-    # - uses: webfactory/ssh-agent@v0.5.4
-    #   with:
-    #     ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    - uses: webfactory/ssh-agent@v0.5.4
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
     - name: Check repo
       uses: actions/checkout@v4
       with:
@@ -67,3 +67,19 @@ jobs:
       run: docker login rg.fr-par.scw.cloud/registry-cicd-example -u nologin --password-stdin <<< "$SCW_SCRT_TK_PROD"
     - run: docker build . --file Dockerfile --tag "rg.fr-par.scw.cloud/registry-cicd-example/${{ steps.repo_name.outputs.lower }}:${{ needs.tags.outputs.new_tag }}"
     - run: docker push "rg.fr-par.scw.cloud/registry-cicd-example/${{ steps.repo_name.outputs.lower }}:${{ needs.tags.outputs.new_tag }}"
+
+    - name: Clone deployment repo
+      run: git clone git@github.com:Civilisation-IT//tuto-deploy.git ./deploy-repo
+
+    - name: Update Docker Compose file
+      run: |
+        sed -i "s|saas-example-frontend:v[0-9]*\.[0-9]*\.[0-9]*|saas-example-frontend:${{ needs.tags.outputs.new_tag }}|" ./deploy-repo/docker-compose.yaml
+
+    - name: Commit and Push changes
+      run: |
+        cd ./deploy-repo
+        git config user.name "GitHub Action"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add docker-compose.yaml
+        git commit -m "Update frontend image version to ${{ needs.tags.outputs.new_tag }}"
+        git push
